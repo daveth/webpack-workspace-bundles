@@ -1,0 +1,10 @@
+{
+  "name": "@daveth/monorepo",
+  "private": true,
+  "workspaces": [
+    "components/*"
+  ],
+  "dependencies": {
+    "typescript": "^4.0.5"
+  }
+}
