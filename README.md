@@ -19,6 +19,7 @@ be installed at deploy-time in the target environment), the `externals` config
 property can be used to only add local workspace dependencies to the bundle.
 
 ## Still to come
+### Dependency Ordering
 Right now the consuming package requires that all local workspace dependencies
 have already been built if they are written in Typescript.
 Unfortunately, `yarn workspaces run <cmd>` simply runs the command in each
@@ -27,3 +28,8 @@ Some way of hooking into Yarn's or Node's module resolution or dependecy graph
 would be really useful for automating this step (perhaps by looking at the
 `workspaceDependencies` section of `yarn workspaces info`?).
 
+### Optimisations / Inlining / Tree-Shaking
+TODO: Investigate.
+
+### Better output generation (more readable)
+TODO: Investigate.
