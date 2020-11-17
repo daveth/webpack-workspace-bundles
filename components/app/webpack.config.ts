@@ -22,13 +22,19 @@ async function yarn(args: string[]): Promise<string> {
   });
 }
 
-async function getWorkspaceInfo(): Promise<any> {
+interface WorkspaceInfo {
+  location: string;
+  workspaceDependencies: string[];
+  mismatchedWorkspaceDependencies: string[];
+}
+
+async function getWorkspaces(): Promise<Record<string, WorkspaceInfo>> {
   return yarn(["--silent", "workspaces", "info"]).then(JSON.parse);
 }
 
 export default async function config(_: any): Promise<Webpack.Configuration> {
-  const workspaceInfo = await getWorkspaceInfo();
-  const workspaceNames = Object.keys(workspaceInfo);
+  const workspaces = await getWorkspaces();
+  const workspaceNames = Object.keys(workspaces);
 
   return {
     entry: { app: Path.resolve(__dirname, "source", "index.ts") },
