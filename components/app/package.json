@@ -1,7 +1,7 @@
 {
   "name": "@daveth/app",
   "version": "1.0.0",
-  "main": "lib/index.js",
+  "main": "dist/app.js",
   "types": "lib/index.d.ts",
   "private": true,
   "scripts": {
@@ -10,11 +10,9 @@
   },
   "dependencies": {
     "@daveth/bar": "^1.0.0",
-    "@daveth/foo": "^1.0.0",
-    "faker": "^5.1.0"
+    "@daveth/foo": "^1.0.0"
   },
   "devDependencies": {
-    "@types/faker": "^5.1.4",
     "@types/webpack": "^4.41.25",
     "@types/webpack-node-externals": "^2.5.0",
     "ts-loader": "^8.0.11",
