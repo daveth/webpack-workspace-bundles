@@ -2,6 +2,7 @@ import Path from "path";
 import ChildProcess from "child_process";
 import Webpack from "webpack";
 import WebpackNodeExternals from "webpack-node-externals";
+import findWorkspaceRoot from "find-workspace-root";
 
 async function yarn(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -33,6 +34,9 @@ async function getWorkspaces(): Promise<Record<string, WorkspaceInfo>> {
 }
 
 export default async function config(_: any): Promise<Webpack.Configuration> {
+  const workspaceRoot = await findWorkspaceRoot();
+  if (!workspaceRoot) throw new Error("Could not find workspace root");
+
   const workspaces = await getWorkspaces();
   const workspaceNames = Object.keys(workspaces);
 
@@ -55,7 +59,7 @@ export default async function config(_: any): Promise<Webpack.Configuration> {
     },
     externals: [
       WebpackNodeExternals({
-        additionalModuleDirs: ["../../node_modules"],
+        additionalModuleDirs: [Path.resolve(workspaceRoot, "node_modules")],
         allowlist: [...workspaceNames],
       }),
     ],
