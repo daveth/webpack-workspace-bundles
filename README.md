@@ -33,3 +33,17 @@ TODO: Investigate.
 
 ### Better output generation (more readable)
 TODO: Investigate.
+
+### Build Issues
+Running `build` in each workspace produces output in its `lib/` directory, but
+for the workspaces that can be built with webpack the typings can be overwritten
+by a `build:deploy` which causes `tsc` to error. Additionally, the deployable
+packages need to have a different `main` entry in their `package.json`.
+
+TODO: Look into using a webpack plugin to emit a modified `package.json` to the
+output directory with a properly adjusted `main` entry and no `devDependencies`.
+
+### Separation of build and package
+The build (webpack) can probably be separated completely from the `app` package
+since it doesn't contain anything specific to `app`. Then, `webpack-merge` could
+be used to create a single webpack configuration that builds all deployables.
