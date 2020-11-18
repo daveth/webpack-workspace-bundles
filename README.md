@@ -44,6 +44,5 @@ TODO: Look into using a webpack plugin to emit a modified `package.json` to the
 output directory with a properly adjusted `main` entry and no `devDependencies`.
 
 ### Separation of build and package
-The build (webpack) can probably be separated completely from the `app` package
-since it doesn't contain anything specific to `app`. Then, `webpack-merge` could
-be used to create a single webpack configuration that builds all deployables.
+The build step has been split out of the package to be built, but needs to be
+parameterised properly since the target is hard-coded.

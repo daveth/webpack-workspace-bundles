@@ -3,6 +3,7 @@ import ChildProcess from "child_process";
 import Webpack from "webpack";
 import WebpackNodeExternals from "webpack-node-externals";
 import findWorkspaceRoot from "find-workspace-root";
+import webpackMerge from "webpack-merge";
 
 async function yarn(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -40,8 +41,7 @@ export default async function config(_: any): Promise<Webpack.Configuration> {
   const workspaces = await getWorkspaces();
   const workspaceNames = Object.keys(workspaces);
 
-  return {
-    entry: { app: Path.resolve(__dirname, "source", "index.ts") },
+  const baseConfig: Webpack.Configuration = {
     output: {
       path: Path.resolve(__dirname, "dist"),
       filename: "[name].js",
@@ -64,4 +64,20 @@ export default async function config(_: any): Promise<Webpack.Configuration> {
       }),
     ],
   };
+
+  const entries: Webpack.Configuration[] = [
+    {
+      entry: {
+        app: Path.resolve(
+          workspaceRoot,
+          "components",
+          "app",
+          "source",
+          "index.ts"
+        ),
+      },
+    },
+  ];
+
+  return webpackMerge(baseConfig, ...entries);
 }

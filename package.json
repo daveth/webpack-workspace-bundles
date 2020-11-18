@@ -2,6 +2,7 @@
   "name": "@daveth/monorepo",
   "private": true,
   "workspaces": [
+    "builder",
     "components/*"
   ],
   "dependencies": {
