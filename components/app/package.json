@@ -1,8 +1,7 @@
 {
   "name": "@daveth/app",
   "version": "1.0.0",
-  "main": "dist/app.js",
-  "types": "lib/index.d.ts",
+  "main": "source/index.ts",
   "private": true,
   "scripts": {
     "build": "tsc",

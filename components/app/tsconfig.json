@@ -2,8 +2,7 @@
   "extends": "../../tsconfig.json",
   "compilerOptions": {
     "declaration": true,
-    "outDir": "lib",
-    "rootDir": "source"
+    "outDir": "lib"
   },
-  "exclude": ["webpack.config.ts"]
+  "include": ["source"]
 }

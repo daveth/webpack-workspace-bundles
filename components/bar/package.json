@@ -1,8 +1,7 @@
 {
   "name": "@daveth/bar",
   "version": "1.0.0",
-  "main": "lib/index.js",
-  "types": "lib/index.d.ts",
+  "main": "source/index.ts",
   "private": true,
   "scripts": {
     "build": "tsc"
