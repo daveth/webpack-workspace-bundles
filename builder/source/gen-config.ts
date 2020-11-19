@@ -4,7 +4,7 @@ import WebpackNodeExternals from "webpack-node-externals";
 import Yarn from "./yarn";
 import webpackMerge from "webpack-merge";
 
-export default async function config(_: any): Promise<Webpack.Configuration> {
+export default async function config(): Promise<Webpack.Configuration> {
   const workspaceRoot = await Yarn.findWorkspaceRoot();
   if (!workspaceRoot) throw new Error("Could not find workspace root");
 

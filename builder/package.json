@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "webpack -c source/webpack.config.ts"
+    "build": "ts-node source/main.ts"
   },
   "devDependencies": {
     "@types/webpack": "^4.41.25",
@@ -14,7 +14,6 @@
     "ts-webpack": "^1.0.0",
     "typescript": "^4.0.5",
     "webpack": "^5.5.0",
-    "webpack-cli": "^4.2.0",
     "webpack-merge": "^5.4.0",
     "webpack-node-externals": "^2.5.2"
   }
