@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "build": "webpack -c webpack-main.ts"
+    "build": "webpack -c source/webpack.config.ts"
   },
   "devDependencies": {
     "@types/webpack": "^4.41.25",
