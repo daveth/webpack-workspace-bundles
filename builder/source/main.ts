@@ -2,6 +2,7 @@ import Path from "path";
 import FS from "fs";
 import Util from "util";
 import Webpack from "webpack";
+import WebpackWriteFilePlugin from "./write-file-plugin";
 import Yarn from "./yarn";
 import genConfig from "./gen-config";
 
