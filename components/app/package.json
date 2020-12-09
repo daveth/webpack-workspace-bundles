@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "source/index.ts",
   "private": true,
+  "bundle": true,
   "scripts": {
     "build": "tsc",
     "build:deploy": "webpack"
