@@ -1,41 +1,15 @@
 import Path from "path";
 import FS from "fs";
 import Util from "util";
+
 import Webpack from "webpack";
-import WebpackWriteFilePlugin from "./write-file-plugin";
+import { CleanWebpackPlugin } from "clean-webpack-plugin";
+import WebpackWriteFilePlugin from "./webpack-write-file-plugin";
 import webpackNodeExternals from "webpack-node-externals";
 import webpackMerge from "webpack-merge";
+
+import * as Misc from "./misc";
 import * as Yarn from "./yarn";
-
-// Turns two arrays into one array of pairs
-function zip<T, U>(a: T[], b: U[]): [T, U][] {
-  return a.map((ai, i) => [ai, b[i]]);
-}
-
-// Flattens arrays or tuples one level deep
-function flatten(arg: any[]): any[] {
-  const res: any[] = [];
-
-  arg.forEach((v) => {
-    if (Array.isArray(v)) res.push(...v);
-    else res.push(v);
-  });
-
-  return res;
-}
-
-function filterObject<T>(obj: T, pred: (arg: [string, any]) => boolean) {
-  if (!obj) return obj;
-
-  const acc: any = {};
-  Object.entries(obj)
-    .filter(pred)
-    .forEach(([name, val]) => {
-      acc[name] = val;
-    });
-
-  return acc;
-}
 
 async function getWorkspacePackageDef(
   workspaceRoot: string,
@@ -55,25 +29,21 @@ function stripWorkspacePackageDef(
   return {
     name: packageDef.name,
     version: packageDef.version,
-    dependencies: filterObject(
+    dependencies: Misc.filterObject(
       packageDef.dependencies,
-      ([name, _]) => name in workspace.workspaceDependencies
+      ([name, _]) => !workspace.workspaceDependencies.find((d) => d === name)
     ),
   };
 }
 
 function makeWorkspaceWebpackConfig(
-  currentDir: string,
   workspaceRoot: string,
   workspace: Yarn.WorkspaceInfo,
   packageDef: Yarn.PackageDef
 ): Webpack.Configuration {
-  // Path from the current dir to the entry file of the package
-  const entry = Path.resolve(
-    Path.relative(currentDir, workspaceRoot),
-    workspace.location,
-    packageDef.main!
-  );
+  // Build a path to the input source file that webpack will use as the entry
+  // point for this bundle.
+  const entry = Path.join(workspaceRoot, workspace.location, packageDef.main!);
 
   // Remove the "@something/" from the start of the package name.
   // We assume that all package scopes for local workspaces are the same and so
@@ -115,22 +85,23 @@ async function run() {
     )
   );
 
-  const workspaceBuildConfigs: Webpack.Configuration[] = zip(
+  // 1. Zip workspace [name, info] with corresponding package defs
+  // 2. Flatten the tuple [[name, ws], pkg] into [name, ws, pkg]
+  // 3. Keep only workspaces we want to build
+  // 4. Filter out packages that have a falsey 'bundle' value
+  // 5. Transform workspace info and package def into a webpack config
+
+  const workspaceBuildConfigs: Webpack.Configuration[] = Misc.zip(
     Object.entries(workspaces),
     packageFiles
   )
-    // Flatten the tuple [[name, ws], pkg] into [name, ws, pkg]
-    .map(flatten)
-    // Build all workspaces if none specified, otherwise only build specified
+    .map(Misc.flatten)
     .filter(([name, ,]) => !workspacesToBuild || name in workspacesToBuild)
-    // Don't build workspaces that aren't intended to be bundled
     .filter(([, , pkg]) => pkg.bundle)
-    // Transform workspace info and package def into a webpack config
-    .map(([, ws, pkg]) =>
-      makeWorkspaceWebpackConfig(process.cwd(), workspaceRoot, ws, pkg)
-    );
+    .map(([, ws, pkg]) => makeWorkspaceWebpackConfig(workspaceRoot, ws, pkg));
 
-  const baseConfig = {
+  const baseConfig: Webpack.Configuration = {
+    mode: "production",
     output: {
       path: outputDir,
       filename: "[name]/index.js",
@@ -152,6 +123,7 @@ async function run() {
         allowlist: [...Object.keys(workspaces)],
       }),
     ],
+    plugins: [new CleanWebpackPlugin()],
   };
 
   const config = webpackMerge([baseConfig, ...workspaceBuildConfigs]);
