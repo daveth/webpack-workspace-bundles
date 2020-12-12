@@ -1,7 +1,24 @@
 import ChildProcess from "child_process";
-import findWorkspaceRoot from "find-workspace-root";
+export { default as findWorkspaceRoot } from "find-workspace-root";
 
-async function run(args: string[]): Promise<string> {
+export interface WorkspaceInfo {
+  location: string;
+  workspaceDependencies: string[];
+  mismatchedWorkspaceDependencies: string[];
+}
+
+export interface PackageDef {
+  name: string;
+  version: string;
+  author?: string;
+  main?: string;
+  types?: string;
+  bundle?: boolean;
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+}
+
+export async function run(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
     const proc = ChildProcess.spawn("yarn", args);
     let stdout = "";
@@ -20,18 +37,6 @@ async function run(args: string[]): Promise<string> {
   });
 }
 
-interface WorkspaceInfo {
-  location: string;
-  workspaceDependencies: string[];
-  mismatchedWorkspaceDependencies: string[];
-}
-
-async function getWorkspaces(): Promise<Record<string, WorkspaceInfo>> {
+export async function getWorkspaces(): Promise<Record<string, WorkspaceInfo>> {
   return run(["--silent", "workspaces", "info"]).then(JSON.parse);
 }
-
-export default {
-  run,
-  getWorkspaces,
-  findWorkspaceRoot,
-};
