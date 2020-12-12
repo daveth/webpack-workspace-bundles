@@ -12,12 +12,11 @@ import * as Misc from "./misc";
 import * as Yarn from "./yarn";
 
 async function getWorkspacePackageDef(
-  workspaceRoot: string,
+  rootPath: string,
   workspace: Yarn.WorkspaceInfo
 ): Promise<Yarn.PackageDef> {
   const read = Util.promisify(FS.readFile);
-
-  return read(Path.resolve(workspaceRoot, workspace.location, "package.json"))
+  return read(Path.resolve(rootPath, workspace.location, "package.json"))
     .then((content) => content.toString())
     .then(JSON.parse);
 }
@@ -50,6 +49,7 @@ function makeWorkspaceWebpackConfig(
   // therefore there won't be any name conflicts that didn't already exist.
   const safePkgName = packageDef.name.replace(/^@.*\//, "");
 
+  // TODO: Need to merge dependencies of workspace depepencies of this package
   // Keep only package name, version, and non-workspace dependencies
   const strippedPackageDef = stripWorkspacePackageDef(workspace, packageDef);
 
@@ -69,37 +69,66 @@ function makeWorkspaceWebpackConfig(
   };
 }
 
+interface Workspace {
+  location: string;
+  packageDefinition: Yarn.PackageDef;
+  workspaceDependencies: string[];
+  mismatchedWorkspaceDependencies: string[];
+}
+
+class Project {
+  private constructor(
+    public readonly location: string,
+    public readonly workspaces: Record<string, Workspace>
+  ) {}
+
+  public static async load(): Promise<Project> {
+    const workspaceRoot = await Yarn.findWorkspaceRoot();
+    if (!workspaceRoot) throw new Error(`Could not find workspace root`);
+
+    const rawWorkspaces = await Yarn.getWorkspaces();
+    const packageDefs = await Promise.all(
+      Object.values(rawWorkspaces).map((ws) =>
+        getWorkspacePackageDef(workspaceRoot, ws)
+      )
+    );
+
+    // take workspaces and package defs
+    // build object like { [name]: { ...workspace, packageDefinition: pkg } }
+    const workspaces: Record<string, Workspace> = {};
+    Misc.zip(Object.entries(rawWorkspaces), packageDefs)
+      .map(Misc.flatten)
+      .forEach(([name, ws, pkg]) => {
+        workspaces[name] = {
+          ...ws,
+          packageDefinition: pkg,
+        };
+      });
+
+    return new Project(workspaceRoot, workspaces);
+  }
+
+  public makeWebpackConfig(filter?: string[]): Webpack.Configuration {
+    const workspaceBuildConfigs = Object.entries(this.workspaces)
+      .filter(([name, ,]) => !filter || filter.find((ws) => ws === name))
+      .filter(([, ws]) => ws.packageDefinition.bundle)
+      .map(([, ws]) =>
+        makeWorkspaceWebpackConfig(this.location, ws, ws.packageDefinition)
+      );
+
+    return webpackMerge(workspaceBuildConfigs);
+  }
+}
+
 async function run() {
-  const workspaceRoot = await Yarn.findWorkspaceRoot();
-  if (!workspaceRoot) throw new Error(`Could not find workspace root`);
+  // Load the project's workspace and package data.
+  const project = await Project.load();
 
   // TODO: These should be parameterisable.
-  const workspacesToBuild: string[] | undefined = undefined;
-  const outputDir = Path.resolve(workspaceRoot, "dist");
-  const modulesDirs = [Path.resolve(workspaceRoot, "node_modules")];
+  const outputDir = Path.resolve(project.location, "dist");
+  const modulesDirs = [Path.resolve(project.location, "node_modules")];
 
-  const workspaces = await Yarn.getWorkspaces();
-  const packageFiles = await Promise.all(
-    Object.values(workspaces).map((ws) =>
-      getWorkspacePackageDef(workspaceRoot, ws)
-    )
-  );
-
-  // 1. Zip workspace [name, info] with corresponding package defs
-  // 2. Flatten the tuple [[name, ws], pkg] into [name, ws, pkg]
-  // 3. Keep only workspaces we want to build
-  // 4. Filter out packages that have a falsey 'bundle' value
-  // 5. Transform workspace info and package def into a webpack config
-
-  const workspaceBuildConfigs: Webpack.Configuration[] = Misc.zip(
-    Object.entries(workspaces),
-    packageFiles
-  )
-    .map(Misc.flatten)
-    .filter(([name, ,]) => !workspacesToBuild || name in workspacesToBuild)
-    .filter(([, , pkg]) => pkg.bundle)
-    .map(([, ws, pkg]) => makeWorkspaceWebpackConfig(workspaceRoot, ws, pkg));
-
+  const workspaceBuildConfigs = project.makeWebpackConfig();
   const baseConfig: Webpack.Configuration = {
     mode: "production",
     output: {
@@ -120,13 +149,13 @@ async function run() {
     externals: [
       webpackNodeExternals({
         additionalModuleDirs: modulesDirs,
-        allowlist: [...Object.keys(workspaces)],
+        allowlist: [...Object.keys(project.workspaces)],
       }),
     ],
     plugins: [new CleanWebpackPlugin()],
   };
 
-  const config = webpackMerge([baseConfig, ...workspaceBuildConfigs]);
+  const config = webpackMerge([baseConfig, workspaceBuildConfigs]);
 
   Webpack(config, (err, stats) => {
     if (err) {
