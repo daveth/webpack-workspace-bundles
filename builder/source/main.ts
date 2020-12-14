@@ -71,8 +71,6 @@ class Compiler {
       dependencies: this.makeDependenciesObject(workspace),
     };
 
-    console.log(packageDefinition.name, packageDefinition.dependencies);
-
     return {
       entry: { [workspace.pathSafeName]: entry },
       plugins: [
@@ -93,7 +91,7 @@ class Compiler {
     return webpackMerge(workspaceBuildConfigs);
   }
 
-  public async run(): Promise<void> {
+  public async run(): Promise<Webpack.Stats> {
     // TODO: These should be parameterisable.
     const outputDir = Path.resolve(this.project.location, "dist");
     const modulesDirs = [Path.resolve(this.project.location, "node_modules")];
@@ -101,6 +99,8 @@ class Compiler {
     const workspaceBuildConfigs = this.makeWebpackConfig();
 
     // TODO: Split out what we can and make this be a user config thing?
+    // TODO: Can we make it so any extra typescript assets like declaration
+    // files or sourcemaps end up in the output bundle?
     const baseConfig: Webpack.Configuration = {
       mode: "production",
       output: {
@@ -128,20 +128,29 @@ class Compiler {
     };
 
     const config = webpackMerge([baseConfig, workspaceBuildConfigs]);
-    try {
-      const stats = await webpackAsync(config);
-      console.log(stats.toString({ colors: true }));
-    } catch (err) {
-      console.error(err);
-    }
+    return webpackAsync(config);
   }
 }
 
 async function run() {
-  // Load the project's workspace and package data.
+  console.log("Reading project workspaces and package definitions...");
   const project = await Project.load();
+
+  for (let [name] of Object.entries(project.workspaces)) {
+    console.info(`Loaded workspace ${name}`);
+  }
+
   const compiler = new Compiler(project);
-  await compiler.run();
+
+  try {
+    console.log("Running webpack...");
+    const stats = await compiler.run();
+
+    console.log("Webpack Output:");
+    console.log(stats.toString({ colors: true }));
+  } catch (err) {
+    console.error(err);
+  }
 }
 
 run();
