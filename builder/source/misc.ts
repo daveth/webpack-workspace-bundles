@@ -21,16 +21,20 @@ function addToObject(obj: any, kv: [string, any]): any {
   return obj;
 }
 
+export function fromEntries(entries: [string, any][]): Record<string, any> {
+  return entries.reduceRight(addToObject, {});
+}
+
 export function filterObject<T>(obj: T, pred: (kv: [string, any]) => boolean) {
   if (!obj) return obj;
-  return Object.entries(obj).filter(pred).reduce(addToObject, {});
+  return fromEntries(Object.entries(obj).filter(pred));
 }
 
 export function mapObject<T>(obj: T, transform: (kv: [string, any]) => any) {
   if (!obj) return obj;
-  return Object.entries(obj)
-    .map(([k, v]): [string, any] => [k, transform([k, v])])
-    .reduce(addToObject, {});
+  return fromEntries(
+    Object.entries(obj).map(([k, v]): [string, any] => [k, transform([k, v])])
+  );
 }
 
 export async function mapObjectAsync<T>(
@@ -42,5 +46,5 @@ export async function mapObjectAsync<T>(
     Object.entries(obj).map(
       async ([k, v]): Promise<[string, any]> => [k, await transform([k, v])]
     )
-  ).then((kvs) => kvs.reduce(addToObject, {}));
+  ).then(fromEntries);
 }

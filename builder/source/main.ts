@@ -20,25 +20,46 @@ function stripWorkspacePackageDef(workspace: Workspace): Yarn.PackageDef {
   };
 }
 
+function collectWorkspaceDeps(
+  project: Project,
+  workspace: Workspace
+): [string, string][] {
+  if (!workspace.packageDefinition.dependencies) return [];
+
+  return Object.entries(workspace.packageDefinition.dependencies)
+    .map(([name, val]): [string, string][] => {
+      if (workspace.workspaceDependencies.find((e) => e === name)) {
+        return collectWorkspaceDeps(project, project.workspaces[name]);
+      } else return [[name, val]];
+    })
+    .reduce((p, n) => p.concat(n));
+}
+
+function makeDependenciesObject(project: Project, workspace: Workspace) {
+  if (!workspace.packageDefinition.dependencies) return undefined;
+  // TODO: Check for conflicts and resolve versions
+  return Misc.fromEntries(collectWorkspaceDeps(project, workspace));
+}
+
 function makeWorkspaceConfig(
-  workspaceRoot: string,
+  project: Project,
   workspace: Workspace
 ): Webpack.Configuration {
   // Build a path to the input source file that webpack will use as the entry
   // point for this bundle.
   const entry = Path.join(
-    workspaceRoot,
+    project.location,
     workspace.location,
     workspace.packageDefinition.main!
   );
 
-  // TODO: Need to merge dependencies of workspace depepencies of this package
-  // Keep only package name, version, and non-workspace dependencies
-  const strippedPackageDef = stripWorkspacePackageDef(workspace);
-
-  // Set the package main file to be "index.js" since this is what the compiled
-  // bundle will end up being named.
-  strippedPackageDef.main = "index.js";
+  // Build the new package definition with all transient dependencies included
+  const packageDefinition: Yarn.PackageDef = {
+    name: workspace.packageDefinition.name,
+    version: workspace.packageDefinition.version,
+    main: "index.js",
+    dependencies: makeDependenciesObject(project, workspace),
+  };
 
   return {
     entry: { [workspace.pathSafeName]: entry },
@@ -46,7 +67,7 @@ function makeWorkspaceConfig(
       new WebpackWriteFilePlugin({
         path: workspace.pathSafeName,
         name: "package.json",
-        content: Buffer.from(JSON.stringify(strippedPackageDef)),
+        content: Buffer.from(JSON.stringify(packageDefinition)),
       }),
     ],
   };
@@ -58,7 +79,7 @@ function makeProjectConfig(
 ): Webpack.Configuration {
   const workspaceBuildConfigs = Object.entries(project.workspaces)
     .filter(([name, ,]) => !filter || filter.find((ws) => ws === name))
-    .map(([, ws]) => makeWorkspaceConfig(project.location, ws));
+    .map(([, ws]) => makeWorkspaceConfig(project, ws));
 
   return webpackMerge(workspaceBuildConfigs);
 }
