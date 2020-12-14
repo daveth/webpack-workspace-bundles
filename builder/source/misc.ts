@@ -15,14 +15,14 @@ export function flatten(arg: any[]): any[] {
   return res;
 }
 
-function addToObject(obj: any, kv: [string, any]): any {
+export function addEntryToObject(obj: any, kv: [string, any]): any {
   const [k, v] = kv;
   obj[k] = v;
   return obj;
 }
 
 export function fromEntries(entries: [string, any][]): Record<string, any> {
-  return entries.reduceRight(addToObject, {});
+  return entries.reduceRight(addEntryToObject, {});
 }
 
 export function filterObject<T>(obj: T, pred: (kv: [string, any]) => boolean) {
