@@ -78,56 +78,73 @@ function makeProjectConfig(
   return webpackMerge(workspaceBuildConfigs);
 }
 
+const webpackAsync = function (
+  config: Webpack.Configuration
+): Promise<Webpack.Stats> {
+  return new Promise((resolve, reject) => {
+    Webpack(config, (err, stats) => {
+      if (err) reject(err);
+      resolve(stats);
+    });
+  });
+};
+
+class Compiler {
+  public constructor(public readonly project: Project) {}
+
+  public makeWebpackConfig(): Webpack.Configuration {
+    return makeProjectConfig(this.project);
+  }
+
+  public async run(): Promise<void> {
+    // TODO: These should be parameterisable.
+    const outputDir = Path.resolve(this.project.location, "dist");
+    const modulesDirs = [Path.resolve(this.project.location, "node_modules")];
+
+    const workspaceBuildConfigs = this.makeWebpackConfig();
+
+    // TODO: Split out what we can and make this be a user config thing?
+    const baseConfig: Webpack.Configuration = {
+      mode: "production",
+      output: {
+        path: outputDir,
+        filename: "[name]/index.js",
+        libraryTarget: "commonjs",
+      },
+      target: "node",
+      module: {
+        rules: [
+          {
+            test: /\.ts$/i,
+            use: "ts-loader",
+            exclude: /node_modules/,
+          },
+        ],
+      },
+      externals: [
+        webpackNodeExternals({
+          additionalModuleDirs: modulesDirs,
+          allowlist: [...Object.keys(this.project.workspaces)],
+        }),
+      ],
+      plugins: [new CleanWebpackPlugin()],
+    };
+
+    const config = webpackMerge([baseConfig, workspaceBuildConfigs]);
+    try {
+      const stats = await webpackAsync(config);
+      console.log(stats.toString({ colors: true }));
+    } catch (err) {
+      console.error(err);
+    }
+  }
+}
+
 async function run() {
   // Load the project's workspace and package data.
   const project = await Project.load();
-
-  // TODO: These should be parameterisable.
-  const outputDir = Path.resolve(project.location, "dist");
-  const modulesDirs = [Path.resolve(project.location, "node_modules")];
-
-  const workspaceBuildConfigs = makeProjectConfig(project);
-
-  // TODO: Split out what we can and make this be a user config thing?
-  const baseConfig: Webpack.Configuration = {
-    mode: "production",
-    output: {
-      path: outputDir,
-      filename: "[name]/index.js",
-      libraryTarget: "commonjs",
-    },
-    target: "node",
-    module: {
-      rules: [
-        {
-          test: /\.ts$/i,
-          use: "ts-loader",
-          exclude: /node_modules/,
-        },
-      ],
-    },
-    externals: [
-      webpackNodeExternals({
-        additionalModuleDirs: modulesDirs,
-        allowlist: [...Object.keys(project.workspaces)],
-      }),
-    ],
-    plugins: [new CleanWebpackPlugin()],
-  };
-
-  const config = webpackMerge([baseConfig, workspaceBuildConfigs]);
-
-  Webpack(config, (err, stats) => {
-    if (err) {
-      console.error(err);
-      return;
-    }
-
-    if (stats) {
-      console.log(stats.toString({ colors: true }));
-      return;
-    }
-  });
+  const compiler = new Compiler(project);
+  await compiler.run();
 }
 
 run();
