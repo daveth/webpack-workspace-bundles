@@ -1,17 +1,13 @@
 import Path from "path";
-import FS from "fs";
-import Util from "util";
-
-const read = Util.promisify(FS.readFile);
-
 import Webpack from "webpack";
 import { CleanWebpackPlugin } from "clean-webpack-plugin";
 import WebpackWriteFilePlugin from "./webpack-write-file-plugin";
 import webpackNodeExternals from "webpack-node-externals";
 import webpackMerge from "webpack-merge";
-
-import * as Misc from "./misc";
+import Workspace from "./workspace";
+import Project from "./project";
 import * as Yarn from "./yarn";
+import * as Misc from "./misc";
 
 function stripWorkspacePackageDef(
   workspace: Yarn.WorkspaceInfo,
@@ -27,104 +23,50 @@ function stripWorkspacePackageDef(
   };
 }
 
-class Workspace {
-  private constructor(
-    public readonly location: string,
-    public readonly packageDefinition: Yarn.PackageDef,
-    public readonly workspaceDependencies: string[],
-    public readonly mismatchedWorkspaceDependencies: string[]
-  ) {}
+function makeWorkspaceConfig(
+  workspaceRoot: string,
+  workspace: Workspace
+): Webpack.Configuration {
+  // Build a path to the input source file that webpack will use as the entry
+  // point for this bundle.
+  const entry = Path.join(
+    workspaceRoot,
+    workspace.location,
+    workspace.packageDefinition.main!
+  );
 
-  public static async load(
-    workspaceRoot: string,
-    workspace: Yarn.WorkspaceInfo
-  ): Promise<Workspace> {
-    const packageDefinition = await read(
-      Path.resolve(workspaceRoot, workspace.location, "package.json")
-    )
-      .then((content) => content.toString())
-      .then(JSON.parse);
+  // TODO: Need to merge dependencies of workspace depepencies of this package
+  // Keep only package name, version, and non-workspace dependencies
+  const strippedPackageDef = stripWorkspacePackageDef(
+    workspace,
+    workspace.packageDefinition
+  );
 
-    return new Workspace(
-      workspace.location,
-      packageDefinition,
-      workspace.workspaceDependencies,
-      workspace.mismatchedWorkspaceDependencies
-    );
-  }
+  // Set the package main file to be "index.js" since this is what the compiled
+  // bundle will end up being named.
+  strippedPackageDef.main = "index.js";
 
-  public get name(): string {
-    return this.packageDefinition.name;
-  }
-
-  public get pathSafeName(): string {
-    // Remove the "@something/" from the start of the package name.
-    // We assume that all package scopes for local workspaces are the same and so
-    // therefore there won't be any name conflicts that didn't already exist.
-    return this.name.replace(/^@.*\//, "");
-  }
-
-  public makeWebpackConfig(workspaceRoot: string): Webpack.Configuration {
-    // Build a path to the input source file that webpack will use as the entry
-    // point for this bundle.
-    const entry = Path.join(
-      workspaceRoot,
-      this.location,
-      this.packageDefinition.main!
-    );
-
-    // TODO: Need to merge dependencies of workspace depepencies of this package
-    // Keep only package name, version, and non-workspace dependencies
-    const strippedPackageDef = stripWorkspacePackageDef(
-      this,
-      this.packageDefinition
-    );
-
-    // Set the package main file to be "index.js" since this is what the compiled
-    // bundle will end up being named.
-    strippedPackageDef.main = "index.js";
-
-    return {
-      entry: { [this.pathSafeName]: entry },
-      plugins: [
-        new WebpackWriteFilePlugin({
-          path: this.pathSafeName,
-          name: "package.json",
-          content: Buffer.from(JSON.stringify(strippedPackageDef)),
-        }),
-      ],
-    };
-  }
+  return {
+    entry: { [workspace.pathSafeName]: entry },
+    plugins: [
+      new WebpackWriteFilePlugin({
+        path: workspace.pathSafeName,
+        name: "package.json",
+        content: Buffer.from(JSON.stringify(strippedPackageDef)),
+      }),
+    ],
+  };
 }
 
-class Project {
-  private constructor(
-    public readonly location: string,
-    public readonly workspaces: Record<string, Workspace>
-  ) {}
+function makeProjectConfig(
+  project: Project,
+  filter?: string[]
+): Webpack.Configuration {
+  const workspaceBuildConfigs = Object.entries(project.workspaces)
+    .filter(([name, ,]) => !filter || filter.find((ws) => ws === name))
+    .map(([, ws]) => makeWorkspaceConfig(project.location, ws));
 
-  public static async load(): Promise<Project> {
-    const workspaceRoot = await Yarn.findWorkspaceRoot();
-    if (!workspaceRoot) throw new Error(`Could not find workspace root`);
-
-    const workspaces: Record<string, Workspace> = await Misc.mapObjectAsync(
-      Misc.filterObject(
-        await Yarn.getWorkspaces(),
-        ([name, _]) => name !== "@daveth/builder"
-      ),
-      async ([, ws]) => await Workspace.load(workspaceRoot, ws)
-    );
-
-    return new Project(workspaceRoot, workspaces);
-  }
-
-  public makeWebpackConfig(filter?: string[]): Webpack.Configuration {
-    const workspaceBuildConfigs = Object.entries(this.workspaces)
-      .filter(([name, ,]) => !filter || filter.find((ws) => ws === name))
-      .map(([, ws]) => ws.makeWebpackConfig(this.location));
-
-    return webpackMerge(workspaceBuildConfigs);
-  }
+  return webpackMerge(workspaceBuildConfigs);
 }
 
 async function run() {
@@ -135,7 +77,7 @@ async function run() {
   const outputDir = Path.resolve(project.location, "dist");
   const modulesDirs = [Path.resolve(project.location, "node_modules")];
 
-  const workspaceBuildConfigs = project.makeWebpackConfig();
+  const workspaceBuildConfigs = makeProjectConfig(project);
   const baseConfig: Webpack.Configuration = {
     mode: "production",
     output: {
