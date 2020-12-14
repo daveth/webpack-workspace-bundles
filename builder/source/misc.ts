@@ -15,15 +15,32 @@ export function flatten(arg: any[]): any[] {
   return res;
 }
 
-export function filterObject<T>(obj: T, pred: (arg: [string, any]) => boolean) {
+function addToObject(obj: any, kv: [string, any]): any {
+  const [k, v] = kv;
+  obj[k] = v;
+  return obj;
+}
+
+export function filterObject<T>(obj: T, pred: (kv: [string, any]) => boolean) {
   if (!obj) return obj;
+  return Object.entries(obj).filter(pred).reduce(addToObject, {});
+}
 
-  const acc: any = {};
-  Object.entries(obj)
-    .filter(pred)
-    .forEach(([name, val]) => {
-      acc[name] = val;
-    });
+export function mapObject<T>(obj: T, transform: (kv: [string, any]) => any) {
+  if (!obj) return obj;
+  return Object.entries(obj)
+    .map(([k, v]): [string, any] => [k, transform([k, v])])
+    .reduce(addToObject, {});
+}
 
-  return acc;
+export async function mapObjectAsync<T>(
+  obj: T,
+  transform: (kv: [string, any]) => Promise<any>
+) {
+  if (!obj) return obj;
+  return Promise.all(
+    Object.entries(obj).map(
+      async ([k, v]): Promise<[string, any]> => [k, await transform([k, v])]
+    )
+  ).then((kvs) => kvs.reduce(addToObject, {}));
 }
