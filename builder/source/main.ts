@@ -9,75 +9,6 @@ import Project from "./project";
 import * as Yarn from "./yarn";
 import * as Misc from "./misc";
 
-function collectWorkspaceDeps(
-  project: Project,
-  workspace: Workspace
-): [string, string][] {
-  if (!workspace.packageDefinition.dependencies) return [];
-
-  // 1. Break the dependencies dictionary up into an array of [name, version]
-  // 2. Map each entry to an array of its child entries:
-  //    if workspace -> recursively call this function to get a list of KV pairs
-  //    else return an array containing the KV pair
-  // 3. Flatten the array of arrays into a single array.
-  return Object.entries(workspace.packageDefinition.dependencies)
-    .map(([name, val]): [string, string][] => {
-      if (workspace.workspaceDependencies.find((e) => e === name)) {
-        return collectWorkspaceDeps(project, project.workspaces[name]);
-      } else return [[name, val]];
-    })
-    .reduceRight((p, n) => p.concat(n));
-}
-
-function makeDependenciesObject(project: Project, workspace: Workspace) {
-  if (!workspace.packageDefinition.dependencies) return undefined;
-  // TODO: Check for conflicts and resolve versions
-  return Misc.fromEntries(collectWorkspaceDeps(project, workspace));
-}
-
-function makeWorkspaceConfig(
-  project: Project,
-  workspace: Workspace
-): Webpack.Configuration {
-  // Build a path to the input source file that webpack will use as the entry
-  // point for this bundle.
-  const entry = Path.join(
-    project.location,
-    workspace.location,
-    workspace.packageDefinition.main!
-  );
-
-  // Build the new package definition with all transient dependencies included
-  const packageDefinition: Yarn.PackageDef = {
-    name: workspace.packageDefinition.name,
-    version: workspace.packageDefinition.version,
-    main: "index.js",
-    dependencies: makeDependenciesObject(project, workspace),
-  };
-
-  return {
-    entry: { [workspace.pathSafeName]: entry },
-    plugins: [
-      new WebpackWriteFilePlugin({
-        path: workspace.pathSafeName,
-        name: "package.json",
-        content: Buffer.from(JSON.stringify(packageDefinition)),
-      }),
-    ],
-  };
-}
-
-function makeProjectConfig(
-  project: Project,
-  filter?: string[]
-): Webpack.Configuration {
-  const workspaceBuildConfigs = Object.entries(project.workspaces)
-    .filter(([name, ,]) => !filter || filter.find((ws) => ws === name))
-    .map(([, ws]) => makeWorkspaceConfig(project, ws));
-
-  return webpackMerge(workspaceBuildConfigs);
-}
-
 const webpackAsync = function (
   config: Webpack.Configuration
 ): Promise<Webpack.Stats> {
@@ -92,8 +23,74 @@ const webpackAsync = function (
 class Compiler {
   public constructor(public readonly project: Project) {}
 
-  public makeWebpackConfig(): Webpack.Configuration {
-    return makeProjectConfig(this.project);
+  private collectWorkspaceDeps(workspace: Workspace): [string, string][] {
+    if (!workspace.packageDefinition.dependencies) return [];
+
+    // 1. Break the dependencies dictionary up into an array of [name, version]
+    // 2. Map each entry to an array of its child entries:
+    //    if workspace -> recursively call this function to get a list of KV pairs
+    //    else return an array containing the KV pair
+    // 3. Flatten the array of arrays into a single array.
+    return Object.entries(workspace.packageDefinition.dependencies)
+      .map(([name, val]): [string, string][] => {
+        if (workspace.workspaceDependencies.find((e) => e === name)) {
+          return this.collectWorkspaceDeps(this.project.workspaces[name]);
+        } else return [[name, val]];
+      })
+      .reduceRight((p, n) => p.concat(n));
+  }
+
+  private makeDependenciesObject(
+    workspace: Workspace
+  ): Record<string, string> | undefined {
+    if (!workspace.packageDefinition.dependencies) return undefined;
+    return this.collectWorkspaceDeps(workspace).reduceRight(
+      (deps, [name, version]) => {
+        if (deps[name])
+          console.warn(`Dependency ${name}@${version} already included`);
+        return Misc.addEntryToObject(deps, [name, version]);
+      },
+      {} as Record<string, string>
+    );
+  }
+
+  private makeWorkspaceConfig(workspace: Workspace): Webpack.Configuration {
+    // Build a path to the input source file that webpack will use as the entry
+    // point for this bundle.
+    const entry = Path.join(
+      this.project.location,
+      workspace.location,
+      workspace.packageDefinition.main!
+    );
+
+    // Build the new package definition with all transient dependencies included
+    const packageDefinition: Yarn.PackageDef = {
+      name: workspace.packageDefinition.name,
+      version: workspace.packageDefinition.version,
+      main: "index.js",
+      dependencies: this.makeDependenciesObject(workspace),
+    };
+
+    console.log(packageDefinition.name, packageDefinition.dependencies);
+
+    return {
+      entry: { [workspace.pathSafeName]: entry },
+      plugins: [
+        new WebpackWriteFilePlugin({
+          path: workspace.pathSafeName,
+          name: "package.json",
+          content: Buffer.from(JSON.stringify(packageDefinition)),
+        }),
+      ],
+    };
+  }
+
+  public makeWebpackConfig(filter?: string[]): Webpack.Configuration {
+    const workspaceBuildConfigs = Object.entries(this.project.workspaces)
+      .filter(([name, ,]) => !filter || filter.find((ws) => ws === name))
+      .map(([, ws]) => this.makeWorkspaceConfig(ws));
+
+    return webpackMerge(workspaceBuildConfigs);
   }
 
   public async run(): Promise<void> {
