@@ -9,15 +9,12 @@ import Project from "./project";
 import * as Yarn from "./yarn";
 import * as Misc from "./misc";
 
-function stripWorkspacePackageDef(
-  workspace: Yarn.WorkspaceInfo,
-  packageDef: Yarn.PackageDef
-): Yarn.PackageDef {
+function stripWorkspacePackageDef(workspace: Workspace): Yarn.PackageDef {
   return {
-    name: packageDef.name,
-    version: packageDef.version,
+    name: workspace.packageDefinition.name,
+    version: workspace.packageDefinition.version,
     dependencies: Misc.filterObject(
-      packageDef.dependencies,
+      workspace.packageDefinition.dependencies,
       ([name, _]) => !workspace.workspaceDependencies.find((d) => d === name)
     ),
   };
@@ -37,10 +34,7 @@ function makeWorkspaceConfig(
 
   // TODO: Need to merge dependencies of workspace depepencies of this package
   // Keep only package name, version, and non-workspace dependencies
-  const strippedPackageDef = stripWorkspacePackageDef(
-    workspace,
-    workspace.packageDefinition
-  );
+  const strippedPackageDef = stripWorkspacePackageDef(workspace);
 
   // Set the package main file to be "index.js" since this is what the compiled
   // bundle will end up being named.
