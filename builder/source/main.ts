@@ -9,30 +9,24 @@ import Project from "./project";
 import * as Yarn from "./yarn";
 import * as Misc from "./misc";
 
-function stripWorkspacePackageDef(workspace: Workspace): Yarn.PackageDef {
-  return {
-    name: workspace.packageDefinition.name,
-    version: workspace.packageDefinition.version,
-    dependencies: Misc.filterObject(
-      workspace.packageDefinition.dependencies,
-      ([name, _]) => !workspace.workspaceDependencies.find((d) => d === name)
-    ),
-  };
-}
-
 function collectWorkspaceDeps(
   project: Project,
   workspace: Workspace
 ): [string, string][] {
   if (!workspace.packageDefinition.dependencies) return [];
 
+  // 1. Break the dependencies dictionary up into an array of [name, version]
+  // 2. Map each entry to an array of its child entries:
+  //    if workspace -> recursively call this function to get a list of KV pairs
+  //    else return an array containing the KV pair
+  // 3. Flatten the array of arrays into a single array.
   return Object.entries(workspace.packageDefinition.dependencies)
     .map(([name, val]): [string, string][] => {
       if (workspace.workspaceDependencies.find((e) => e === name)) {
         return collectWorkspaceDeps(project, project.workspaces[name]);
       } else return [[name, val]];
     })
-    .reduce((p, n) => p.concat(n));
+    .reduceRight((p, n) => p.concat(n));
 }
 
 function makeDependenciesObject(project: Project, workspace: Workspace) {
@@ -93,6 +87,8 @@ async function run() {
   const modulesDirs = [Path.resolve(project.location, "node_modules")];
 
   const workspaceBuildConfigs = makeProjectConfig(project);
+
+  // TODO: Split out what we can and make this be a user config thing?
   const baseConfig: Webpack.Configuration = {
     mode: "production",
     output: {
