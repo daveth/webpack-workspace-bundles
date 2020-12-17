@@ -7,7 +7,7 @@
   ],
   "scripts": {
     "build": "yarn workspace @daveth/builder build",
-    "clean": "rimraf dist components/*/lib"
+    "clean": "rimraf dist components/*/lib && yarn workspace @daveth/builder clean"
   },
   "devDependencies": {
     "rimraf": "^3.0.2",

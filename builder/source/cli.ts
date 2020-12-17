@@ -1,3 +1,5 @@
+#! /usr/bin/env node
+
 import Webpack from "webpack";
 import Project from "./project";
 import Compiler from "./compiler";
