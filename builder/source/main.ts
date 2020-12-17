@@ -32,18 +32,15 @@ class Compiler {
     //    else return an array containing the KV pair
     // 3. Flatten the array of arrays into a single array.
     return Object.entries(workspace.packageDefinition.dependencies)
-      .map(([name, val]): [string, string][] => {
+      .map(([name, version]): [string, string][] => {
         if (workspace.workspaceDependencies.find((e) => e === name)) {
           return this.collectWorkspaceDeps(this.project.workspaces[name]);
-        } else return [[name, val]];
+        } else return [[name, version]];
       })
       .reduceRight((p, n) => p.concat(n));
   }
 
-  private makeDependenciesObject(
-    workspace: Workspace
-  ): Record<string, string> | undefined {
-    if (!workspace.packageDefinition.dependencies) return undefined;
+  private makeDependenciesObject(workspace: Workspace): Record<string, string> {
     return this.collectWorkspaceDeps(workspace).reduceRight(
       (deps, [name, version]) => {
         if (deps[name])
@@ -55,12 +52,18 @@ class Compiler {
   }
 
   private makeWorkspaceConfig(workspace: Workspace): Webpack.Configuration {
+    if (!workspace.packageDefinition.main) {
+      throw new Error(
+        `Cannot bundle workspace ${workspace.name}, no 'main' field in package.json`
+      );
+    }
+
     // Build a path to the input source file that webpack will use as the entry
     // point for this bundle.
     const entry = Path.join(
       this.project.location,
       workspace.location,
-      workspace.packageDefinition.main!
+      workspace.packageDefinition.main
     );
 
     // Build the new package definition with all transient dependencies included
