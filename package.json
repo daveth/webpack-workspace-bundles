@@ -6,6 +6,7 @@
     "components/*"
   ],
   "scripts": {
+    "build": "yarn workspace @daveth/builder build",
     "clean": "rimraf dist components/*/lib"
   },
   "devDependencies": {
