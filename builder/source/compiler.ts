@@ -1,27 +1,25 @@
 import Path from "path";
+
 import Webpack from "webpack";
 import { CleanWebpackPlugin } from "clean-webpack-plugin";
 import WebpackWriteFilePlugin from "./webpack-write-file-plugin";
 import webpackNodeExternals from "webpack-node-externals";
 import webpackMerge from "webpack-merge";
-import Workspace from "./workspace";
+
 import Project from "./project";
+import Workspace from "./workspace";
 import * as Yarn from "./yarn";
 import * as Misc from "./misc";
 
-const webpackAsync = function (
-  config: Webpack.Configuration
-): Promise<Webpack.Stats> {
-  return new Promise((resolve, reject) => {
-    Webpack(config, (err, stats) => {
-      if (err) reject(err);
-      resolve(stats);
-    });
-  });
-};
+export default class Compiler {
+  public readonly outputDir: string;
+  public readonly modulesDirs: string[];
 
-class Compiler {
-  public constructor(public readonly project: Project) {}
+  public constructor(public readonly project: Project) {
+    // TODO: These should be parameterisable.
+    this.outputDir = Path.resolve(this.project.location, "dist");
+    this.modulesDirs = [Path.resolve(this.project.location, "node_modules")];
+  }
 
   private collectWorkspaceDeps(workspace: Workspace): [string, string][] {
     if (!workspace.packageDefinition.dependencies) return [];
@@ -91,23 +89,13 @@ class Compiler {
       .filter(([name, ,]) => !filter || filter.find((ws) => ws === name))
       .map(([, ws]) => this.makeWorkspaceConfig(ws));
 
-    return webpackMerge(workspaceBuildConfigs);
-  }
-
-  public async run(): Promise<Webpack.Stats> {
-    // TODO: These should be parameterisable.
-    const outputDir = Path.resolve(this.project.location, "dist");
-    const modulesDirs = [Path.resolve(this.project.location, "node_modules")];
-
-    const workspaceBuildConfigs = this.makeWebpackConfig();
-
     // TODO: Split out what we can and make this be a user config thing?
     // TODO: Can we make it so any extra typescript assets like declaration
     // files or sourcemaps end up in the output bundle?
     const baseConfig: Webpack.Configuration = {
       mode: "production",
       output: {
-        path: outputDir,
+        path: this.outputDir,
         filename: "[name]/index.js",
         libraryTarget: "commonjs",
       },
@@ -123,37 +111,13 @@ class Compiler {
       },
       externals: [
         webpackNodeExternals({
-          additionalModuleDirs: modulesDirs,
+          additionalModuleDirs: this.modulesDirs,
           allowlist: [...Object.keys(this.project.workspaces)],
         }),
       ],
       plugins: [new CleanWebpackPlugin()],
     };
 
-    const config = webpackMerge([baseConfig, workspaceBuildConfigs]);
-    return webpackAsync(config);
+    return webpackMerge([baseConfig, ...workspaceBuildConfigs]);
   }
 }
-
-async function run() {
-  console.log("Reading project workspaces and package definitions...");
-  const project = await Project.load();
-
-  for (let [name] of Object.entries(project.workspaces)) {
-    console.info(`Loaded workspace ${name}`);
-  }
-
-  const compiler = new Compiler(project);
-
-  try {
-    console.log("Running webpack...");
-    const stats = await compiler.run();
-
-    console.log("Webpack Output:");
-    console.log(stats.toString({ colors: true }));
-  } catch (err) {
-    console.error(err);
-  }
-}
-
-run();
