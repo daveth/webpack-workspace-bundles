@@ -4,7 +4,7 @@ import Compiler from "./compiler";
 
 async function webpackAsync(
   config: Webpack.Configuration
-): Promise<Webpack.Stats> {
+): Promise<Webpack.Stats | undefined> {
   return new Promise((resolve, reject) => {
     Webpack(config, (err, stats) => {
       if (err) reject(err);
@@ -31,7 +31,7 @@ async function run() {
     const stats = await webpackAsync(config);
 
     console.log("Webpack Output:");
-    console.log(stats.toString({ colors: true }));
+    console.log(stats?.toString({ colors: true }));
   } catch (err) {
     console.error(err);
   }
