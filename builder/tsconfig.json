@@ -18,5 +18,7 @@
 
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
-  }
+  },
+  "exclude": ["./cli.js"],
+  "include": ["source"]
 }
