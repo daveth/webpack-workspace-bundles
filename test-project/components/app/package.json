@@ -5,8 +5,7 @@
   "private": true,
   "bundle": true,
   "scripts": {
-    "build": "tsc",
-    "build:deploy": "webpack"
+    "build": "tsc"
   },
   "dependencies": {
     "@daveth/bar": "^1.0.0",
