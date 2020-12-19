@@ -19,30 +19,30 @@ be installed at deploy-time in the target environment), the `externals` config
 property can be used to only add local workspace dependencies to the bundle.
 
 ## Still to come
-### Dependency Ordering
-Right now the consuming package requires that all local workspace dependencies
-have already been built if they are written in Typescript.
-Unfortunately, `yarn workspaces run <cmd>` simply runs the command in each
-workspace in an arbitrary order that doesn't respect the depencency graph.
-Some way of hooking into Yarn's or Node's module resolution or dependecy graph
-would be really useful for automating this step (perhaps by looking at the
-`workspaceDependencies` section of `yarn workspaces info`?).
-
 ### Optimisations / Inlining / Tree-Shaking
 TODO: Investigate.
 
 ### Better output generation (more readable)
 TODO: Investigate.
 
-### Build Issues
-Running `build` in each workspace produces output in its `lib/` directory, but
-for the workspaces that can be built with webpack the typings can be overwritten
-by a `build:deploy` which causes `tsc` to error. Additionally, the deployable
-packages need to have a different `main` entry in their `package.json`.
+### Webpack declaration files in incorrect places
+Generated `*.d.ts` files end up in the workspace's directories instead of where
+the `builder` output directory is specified. Is this a `tsconfig.json` issue or
+a webpack one?
 
-TODO: Look into using a webpack plugin to emit a modified `package.json` to the
-output directory with a properly adjusted `main` entry and no `devDependencies`.
+It seems like the files end up wherever the `compilerOptions.outDir` field of
+the workspace's `tsconfig.json` file specifies. Is there a good way to control
+this from webpack?
 
 ### Separation of build and package
 The build step has been split out of the package to be built, but needs to be
 parameterised properly since the target is hard-coded.
+
+### Better local testing
+Currently the `builder` package is up one level from the yarn workspaces project
+that uses it. The `test-project` project references the `builder` package by a
+relative path, which unfortunately seems to mean it doesn't transitively install
+dependencies of the `builder` package, causing webpack's `ts-loader` to fail.
+TODO: Hoist the `ts-loader` dependency out of `builder`? Maybe it shouldn't need
+to know about loaders for the entrypoints, and those should be passed by the
+project configuration.
