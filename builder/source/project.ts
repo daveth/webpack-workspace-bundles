@@ -13,10 +13,7 @@ export default class Project {
     if (!workspaceRoot) throw new Error(`Could not find workspace root`);
 
     const workspaces: Record<string, Workspace> = await Misc.mapObjectAsync(
-      Misc.filterObject(
-        await Yarn.getWorkspaces(),
-        ([name, _]) => name !== "@daveth/builder"
-      ),
+      await Yarn.getWorkspaces(),
       async ([, ws]) => await Workspace.load(workspaceRoot, ws)
     );
 
