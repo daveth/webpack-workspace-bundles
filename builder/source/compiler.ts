@@ -11,15 +11,20 @@ import Workspace from "./workspace";
 import * as Yarn from "./yarn";
 import * as Misc from "./misc";
 
-export default class Compiler {
-  public readonly outputDir: string;
-  public readonly modulesDirs: string[];
+export interface CompilerOptions {
+  outputDir: string;
+  modulesDirs: string[];
+  externalsAllowList?: string[];
+}
 
-  public constructor(public readonly project: Project) {
-    // TODO: These should be parameterisable.
-    this.outputDir = Path.resolve(this.project.location, "dist");
-    this.modulesDirs = [Path.resolve(this.project.location, "node_modules")];
-  }
+export class Compiler {
+  public constructor(
+    public readonly project: Project,
+    public readonly options: CompilerOptions = {
+      outputDir: Path.resolve(project.location, "dist"),
+      modulesDirs: [Path.resolve(project.location, "node_modules")],
+    }
+  ) {}
 
   private collectWorkspaceDeps(workspace: Workspace): [string, string][] {
     if (!workspace.packageDefinition.dependencies) return [];
@@ -95,7 +100,7 @@ export default class Compiler {
     const baseConfig: Webpack.Configuration = {
       mode: "production",
       output: {
-        path: this.outputDir,
+        path: this.options!.outputDir,
         filename: "[name]/index.js",
         libraryTarget: "commonjs",
       },
@@ -111,8 +116,11 @@ export default class Compiler {
       },
       externals: [
         webpackNodeExternals({
-          additionalModuleDirs: this.modulesDirs,
-          allowlist: [...Object.keys(this.project.workspaces)],
+          additionalModuleDirs: this.options!.modulesDirs,
+          allowlist: [
+            ...Object.keys(this.project.workspaces),
+            ...(this.options!.externalsAllowList || []),
+          ],
         }),
       ],
       plugins: [new CleanWebpackPlugin()],
@@ -121,3 +129,5 @@ export default class Compiler {
     return webpackMerge([baseConfig, ...workspaceBuildConfigs]);
   }
 }
+
+export default Compiler;
