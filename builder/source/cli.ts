@@ -1,6 +1,10 @@
+import FS from "fs";
+import Path from "path";
+import Util from "util";
+
 import Webpack from "webpack";
 import Project from "./project";
-import Compiler from "./compiler";
+import { Compiler, CompilerOptions } from "./compiler";
 
 async function webpackAsync(
   config: Webpack.Configuration
@@ -13,15 +17,28 @@ async function webpackAsync(
   });
 }
 
+const read = Util.promisify(FS.readFile);
+
+async function loadUserConfig(project: Project): Promise<CompilerOptions> {
+  const raw = await read(Path.join(project.location, "daveth-build.json"))
+    .then((buf) => buf.toString())
+    .then(JSON.parse);
+
+  return {
+    outputDir: Path.resolve(raw.outputDir),
+    modulesDirs: [Path.resolve(project.location, "node_modules")],
+    workspaces: raw.workspaces,
+    target: raw.target,
+    libraryTarget: raw.libraryTarget,
+  };
+}
+
 async function run() {
   console.log("Reading project workspaces and package definitions...");
   const project = await Project.load();
 
-  for (let [name] of Object.entries(project.workspaces)) {
-    console.info(`Loaded workspace ${name}`);
-  }
-
-  const compiler = new Compiler(project);
+  const userConfig = await loadUserConfig(project);
+  const compiler = new Compiler(project, userConfig);
 
   try {
     console.log("Building Webpack Configuration...");
@@ -29,8 +46,6 @@ async function run() {
 
     console.log("Running webpack...");
     const stats = await webpackAsync(config);
-
-    console.log("Webpack Output:");
     console.log(stats?.toString({ colors: true }));
   } catch (err) {
     console.error(err);

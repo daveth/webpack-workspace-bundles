@@ -13,17 +13,16 @@ import * as Misc from "./misc";
 
 export interface CompilerOptions {
   outputDir: string;
+  target: string;
+  libraryTarget: string;
   modulesDirs: string[];
-  externalsAllowList?: string[];
+  workspaces?: string[];
 }
 
 export class Compiler {
   public constructor(
     public readonly project: Project,
-    public readonly options: CompilerOptions = {
-      outputDir: Path.resolve(project.location, "dist"),
-      modulesDirs: [Path.resolve(project.location, "node_modules")],
-    }
+    public readonly options?: CompilerOptions
   ) {}
 
   private collectWorkspaceDeps(workspace: Workspace): [string, string][] {
@@ -89,9 +88,13 @@ export class Compiler {
     };
   }
 
-  public makeWebpackConfig(filter?: string[]): Webpack.Configuration {
+  public makeWebpackConfig(): Webpack.Configuration {
+    const workspacesToBuild = this.options?.workspaces;
     const workspaceBuildConfigs = Object.entries(this.project.workspaces)
-      .filter(([name, ,]) => !filter || filter.find((ws) => ws === name))
+      .filter(
+        ([name, ,]) =>
+          !workspacesToBuild || workspacesToBuild.find((ws) => ws === name)
+      )
       .map(([, ws]) => this.makeWorkspaceConfig(ws));
 
     // TODO: Split out what we can and make this be a user config thing?
@@ -102,9 +105,9 @@ export class Compiler {
       output: {
         path: this.options!.outputDir,
         filename: "[name]/index.js",
-        libraryTarget: "commonjs",
+        libraryTarget: this.options?.libraryTarget || "commonjs",
       },
-      target: "node",
+      target: this.options?.target || "node",
       module: {
         rules: [
           {
@@ -117,10 +120,7 @@ export class Compiler {
       externals: [
         webpackNodeExternals({
           additionalModuleDirs: this.options!.modulesDirs,
-          allowlist: [
-            ...Object.keys(this.project.workspaces),
-            ...(this.options!.externalsAllowList || []),
-          ],
+          allowlist: [...Object.keys(this.project.workspaces)],
         }),
       ],
       plugins: [new CleanWebpackPlugin()],
