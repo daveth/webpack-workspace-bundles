@@ -1,5 +1,5 @@
 {
-  "name": "@daveth/monorepo",
+  "name": "@daveth/cli-project",
   "private": true,
   "workspaces": [
     "builder",
