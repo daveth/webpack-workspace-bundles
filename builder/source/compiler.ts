@@ -6,25 +6,23 @@ import WebpackWriteFilePlugin from "./webpack-write-file-plugin";
 import webpackNodeExternals from "webpack-node-externals";
 import webpackMerge from "webpack-merge";
 
-import Project from "./project";
-import Workspace from "./workspace";
-import * as Yarn from "./yarn";
-import * as Misc from "./misc";
+import * as Yarn from "@yarnpkg/core";
+import * as YarnFS from "@yarnpkg/fslib";
 
-export interface CompilerOptions {
-  outputDir: string;
-  target: string;
-  libraryTarget: string;
-  modulesDirs: string[];
-  workspaces?: string[];
+function hasMain(ws: Yarn.Workspace): boolean {
+  return ws.manifest.main !== null;
 }
 
 export class Compiler {
-  public constructor(
-    public readonly project: Project,
-    public readonly options?: CompilerOptions
-  ) {}
+  public constructor(public readonly project: Yarn.Project) {}
 
+  public get workspaceIdentStrings(): string[] {
+    return this.project.workspaces.map((ws) =>
+      Yarn.structUtils.stringifyIdent(ws.manifest.name!)
+    );
+  }
+
+  /*
   private collectWorkspaceDeps(workspace: Workspace): [string, string][] {
     if (!workspace.packageDefinition.dependencies) return [];
 
@@ -42,72 +40,44 @@ export class Compiler {
       .reduceRight((p, n) => p.concat(n));
   }
 
-  private makeDependenciesObject(workspace: Workspace): Record<string, string> {
-    return this.collectWorkspaceDeps(workspace).reduceRight(
-      (deps, [name, version]) => {
-        if (deps[name])
-          console.warn(`Dependency ${name}@${version} already included`);
-        return Misc.addEntryToObject(deps, [name, version]);
-      },
-      {} as Record<string, string>
-    );
-  }
+  */
 
-  private makeWorkspaceConfig(workspace: Workspace): Webpack.Configuration {
-    if (!workspace.packageDefinition.main) {
-      throw new Error(
-        `Cannot bundle workspace ${workspace.name}, no 'main' field in package.json`
-      );
-    }
+  public makeWorkspaceConfig(workspace: Yarn.Workspace): Webpack.Configuration {
+    const name = workspace.manifest.name?.name!;
+    const entry = YarnFS.ppath.resolve(workspace.cwd, workspace.manifest.main!);
 
-    // Build a path to the input source file that webpack will use as the entry
-    // point for this bundle.
-    const entry = Path.join(
-      this.project.location,
-      workspace.location,
-      workspace.packageDefinition.main
-    );
+    // Build the new manifest with all transient dependencies included.
+    const manifest = new Yarn.Manifest();
+    manifest.name = workspace.manifest.name;
+    manifest.version = workspace.manifest.version;
+    manifest.main = YarnFS.npath.toPortablePath("index.js");
 
-    // Build the new package definition with all transient dependencies included
-    const packageDefinition: Yarn.PackageDef = {
-      name: workspace.packageDefinition.name,
-      version: workspace.packageDefinition.version,
-      main: "index.js",
-      dependencies: this.makeDependenciesObject(workspace),
-    };
+    // TODO: Use Yarn to collect dependencies!
 
     return {
-      entry: { [workspace.pathSafeName]: entry },
+      entry: { [name]: entry },
       plugins: [
         new WebpackWriteFilePlugin({
-          path: workspace.pathSafeName,
+          path: name,
           name: "package.json",
-          content: Buffer.from(JSON.stringify(packageDefinition)),
+          content: Buffer.from(JSON.stringify(manifest.exportTo({}))),
         }),
       ],
     };
   }
 
   public makeWebpackConfig(): Webpack.Configuration {
-    const workspacesToBuild = this.options?.workspaces;
-    const workspaceBuildConfigs = Object.entries(this.project.workspaces)
-      .filter(
-        ([name, ,]) =>
-          !workspacesToBuild || workspacesToBuild.find((ws) => ws === name)
-      )
-      .map(([, ws]) => this.makeWorkspaceConfig(ws));
-
     // TODO: Split out what we can and make this be a user config thing?
     // TODO: Can we make it so any extra typescript assets like declaration
     // files or sourcemaps end up in the output bundle?
     const baseConfig: Webpack.Configuration = {
       mode: "production",
       output: {
-        path: this.options!.outputDir,
+        path: Path.resolve("dist"),
         filename: "[name]/index.js",
-        libraryTarget: this.options?.libraryTarget || "commonjs",
+        libraryTarget: "commonjs",
       },
-      target: this.options?.target || "node",
+      target: "node",
       module: {
         rules: [
           {
@@ -119,15 +89,18 @@ export class Compiler {
       },
       externals: [
         webpackNodeExternals({
-          additionalModuleDirs: this.options!.modulesDirs,
-          allowlist: [...Object.keys(this.project.workspaces)],
+          additionalModuleDirs: [Path.resolve("node_modules")],
+          allowlist: this.workspaceIdentStrings,
         }),
       ],
       plugins: [new CleanWebpackPlugin()],
     };
 
-    return webpackMerge([baseConfig, ...workspaceBuildConfigs]);
+    return webpackMerge([
+      baseConfig,
+      ...this.project.workspaces
+        .filter(hasMain)
+        .map((ws) => this.makeWorkspaceConfig(ws)),
+    ]);
   }
 }
-
-export default Compiler;

@@ -1,6 +1,0 @@
-{
-  "target": "node",
-  "libraryTarget": "commonjs",
-  "outputDir": "dist",
-  "workspaces": ["@daveth/app"]
-}

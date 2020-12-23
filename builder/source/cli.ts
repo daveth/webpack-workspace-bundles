@@ -1,44 +1,26 @@
-import FS from "fs";
-import Path from "path";
-import Util from "util";
+import * as Yarn from "@yarnpkg/core";
+import * as YarnFS from "@yarnpkg/fslib";
 
-import Webpack from "webpack";
-import Project from "./project";
-import { Compiler, CompilerOptions } from "./compiler";
+import * as Webpack from "webpack";
+import { Compiler } from "./compiler";
 
 async function webpackAsync(
   config: Webpack.Configuration
 ): Promise<Webpack.Stats | undefined> {
   return new Promise((resolve, reject) => {
-    Webpack(config, (err, stats) => {
+    Webpack.webpack(config, (err, stats) => {
       if (err) reject(err);
       resolve(stats);
     });
   });
 }
 
-const read = Util.promisify(FS.readFile);
-
-async function loadUserConfig(project: Project): Promise<CompilerOptions> {
-  const raw = await read(Path.join(project.location, "daveth-build.json"))
-    .then((buf) => buf.toString())
-    .then(JSON.parse);
-
-  return {
-    outputDir: Path.resolve(raw.outputDir),
-    modulesDirs: [Path.resolve(project.location, "node_modules")],
-    workspaces: raw.workspaces,
-    target: raw.target,
-    libraryTarget: raw.libraryTarget,
-  };
-}
-
 async function run() {
-  console.log("Reading project workspaces and package definitions...");
-  const project = await Project.load();
+  const cwd = YarnFS.npath.toPortablePath(process.cwd());
+  const yarnConfig = await Yarn.Configuration.find(cwd, null);
+  const { project } = await Yarn.Project.find(yarnConfig, cwd);
 
-  const userConfig = await loadUserConfig(project);
-  const compiler = new Compiler(project, userConfig);
+  const compiler = new Compiler(project);
 
   try {
     console.log("Building Webpack Configuration...");
@@ -52,4 +34,4 @@ async function run() {
   }
 }
 
-run();
+run().catch(console.error);
