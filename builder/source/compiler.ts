@@ -1,7 +1,6 @@
 import Path from "path";
 
 import Webpack from "webpack";
-import { CleanWebpackPlugin } from "clean-webpack-plugin";
 import WebpackWriteFilePlugin from "./webpack-write-file-plugin";
 import webpackNodeExternals from "webpack-node-externals";
 import webpackMerge from "webpack-merge";
@@ -39,7 +38,6 @@ export class Compiler {
       })
       .reduceRight((p, n) => p.concat(n));
   }
-
   */
 
   public makeWorkspaceConfig(workspace: Yarn.Workspace): Webpack.Configuration {
@@ -67,40 +65,20 @@ export class Compiler {
   }
 
   public makeWebpackConfig(): Webpack.Configuration {
-    // TODO: Split out what we can and make this be a user config thing?
-    // TODO: Can we make it so any extra typescript assets like declaration
-    // files or sourcemaps end up in the output bundle?
-    const baseConfig: Webpack.Configuration = {
-      mode: "production",
-      output: {
-        path: Path.resolve("dist"),
-        filename: "[name]/index.js",
-        libraryTarget: "commonjs",
-      },
-      target: "node",
-      module: {
-        rules: [
-          {
-            test: /\.ts$/i,
-            use: "ts-loader",
-            exclude: /node_modules/,
-          },
-        ],
-      },
-      externals: [
-        webpackNodeExternals({
-          additionalModuleDirs: [Path.resolve("node_modules")],
-          allowlist: this.workspaceIdentStrings,
-        }),
-      ],
-      plugins: [new CleanWebpackPlugin()],
-    };
+    const workspaceConfigs = this.project.workspaces
+      .filter(hasMain)
+      .map((ws) => this.makeWorkspaceConfig(ws));
 
     return webpackMerge([
-      baseConfig,
-      ...this.project.workspaces
-        .filter(hasMain)
-        .map((ws) => this.makeWorkspaceConfig(ws)),
+      {
+        externals: [
+          webpackNodeExternals({
+            additionalModuleDirs: [Path.resolve("node_modules")],
+            allowlist: this.workspaceIdentStrings,
+          }),
+        ],
+      },
+      ...workspaceConfigs,
     ]);
   }
 }

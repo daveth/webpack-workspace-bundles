@@ -2,6 +2,9 @@ import * as Yarn from "@yarnpkg/core";
 import * as YarnFS from "@yarnpkg/fslib";
 
 import * as Webpack from "webpack";
+import { CleanWebpackPlugin } from "clean-webpack-plugin";
+import webpackMerge from "webpack-merge";
+
 import { Compiler } from "./compiler";
 
 async function webpackAsync(
@@ -15,6 +18,29 @@ async function webpackAsync(
   });
 }
 
+// TODO: Split out what we can and make this be a user config thing?
+// TODO: Can we make it so any extra typescript assets like declaration
+// files or sourcemaps end up in the output bundle?
+const baseConfig: Webpack.Configuration = {
+  mode: "production",
+  output: {
+    path: YarnFS.npath.resolve("dist"),
+    filename: "[name]/index.js",
+    libraryTarget: "commonjs",
+  },
+  target: "node",
+  module: {
+    rules: [
+      {
+        test: /\.ts$/i,
+        use: "ts-loader",
+        exclude: /node_modules/,
+      },
+    ],
+  },
+  plugins: [new CleanWebpackPlugin()],
+};
+
 async function run() {
   const cwd = YarnFS.npath.toPortablePath(process.cwd());
   const yarnConfig = await Yarn.Configuration.find(cwd, null);
@@ -23,10 +49,7 @@ async function run() {
   const compiler = new Compiler(project);
 
   try {
-    console.log("Building Webpack Configuration...");
-    const config = compiler.makeWebpackConfig();
-
-    console.log("Running webpack...");
+    const config = webpackMerge([baseConfig, compiler.makeWebpackConfig()]);
     const stats = await webpackAsync(config);
     console.log(stats?.toString({ colors: true }));
   } catch (err) {
