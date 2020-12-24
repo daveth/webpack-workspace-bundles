@@ -19,11 +19,7 @@ be installed at deploy-time in the target environment), the `externals` config
 property can be used to only add local workspace dependencies to the bundle.
 
 ## Still to come
-### Optimisations / Inlining / Tree-Shaking
-TODO: Investigate.
-
-### Better output generation (more readable)
-TODO: Investigate.
+### Control the build with a config file or command line params
 
 ### Webpack declaration files in incorrect places
 Generated `*.d.ts` files end up in the workspace's directories instead of where
@@ -33,16 +29,3 @@ a webpack one?
 It seems like the files end up wherever the `compilerOptions.outDir` field of
 the workspace's `tsconfig.json` file specifies. Is there a good way to control
 this from webpack?
-
-### Separation of build and package
-The build step has been split out of the package to be built, but needs to be
-parameterised properly since the target is hard-coded.
-
-### Better local testing
-Currently the `builder` package is up one level from the yarn workspaces project
-that uses it. The `test-project` project references the `builder` package by a
-relative path, which unfortunately seems to mean it doesn't transitively install
-dependencies of the `builder` package, causing webpack's `ts-loader` to fail.
-TODO: Hoist the `ts-loader` dependency out of `builder`? Maybe it shouldn't need
-to know about loaders for the entrypoints, and those should be passed by the
-project configuration.
