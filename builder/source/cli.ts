@@ -45,16 +45,10 @@ async function run() {
   const cwd = YarnFS.npath.toPortablePath(process.cwd());
   const yarnConfig = await Yarn.Configuration.find(cwd, null);
   const { project } = await Yarn.Project.find(yarnConfig, cwd);
-
   const compiler = new Compiler(project);
-
-  try {
-    const config = webpackMerge([baseConfig, compiler.makeWebpackConfig()]);
-    const stats = await webpackAsync(config);
-    console.log(stats?.toString({ colors: true }));
-  } catch (err) {
-    console.error(err);
-  }
+  const config = webpackMerge([baseConfig, compiler.makeWebpackConfig()]);
+  const stats = await webpackAsync(config);
+  console.log(stats?.toString({ colors: true }));
 }
 
 run().catch(console.error);

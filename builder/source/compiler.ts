@@ -12,6 +12,12 @@ function hasMain(ws: Yarn.Workspace): boolean {
   return ws.manifest.main !== null;
 }
 
+function unique<T>(value: T, index: number, array: T[]): boolean {
+  return array.indexOf(value) === index;
+}
+
+type DependencyPair = [Yarn.IdentHash, Yarn.Descriptor];
+
 export class Compiler {
   public constructor(public readonly project: Yarn.Project) {}
 
@@ -21,24 +27,17 @@ export class Compiler {
     );
   }
 
-  /*
-  private collectWorkspaceDeps(workspace: Workspace): [string, string][] {
-    if (!workspace.packageDefinition.dependencies) return [];
-
-    // 1. Break the dependencies dictionary up into an array of [name, version]
-    // 2. Map each entry to an array of its child entries:
-    //    if workspace -> recursively call this function to get a list of KV pairs
-    //    else return an array containing the KV pair
-    // 3. Flatten the array of arrays into a single array.
-    return Object.entries(workspace.packageDefinition.dependencies)
-      .map(([name, version]): [string, string][] => {
-        if (workspace.workspaceDependencies.find((e) => e === name)) {
-          return this.collectWorkspaceDeps(this.project.workspaces[name]);
-        } else return [[name, version]];
+  private collectDependencies(workspace: Yarn.Workspace): DependencyPair[] {
+    const workspaces = this.project.workspacesByIdent;
+    return Array.from(workspace.manifest.dependencies)
+      .map(([ident, desc]): DependencyPair[] => {
+        if (workspaces.has(ident))
+          return this.collectDependencies(workspaces.get(ident)!);
+        else return [[ident, desc]];
       })
-      .reduceRight((p, n) => p.concat(n));
+      .reduceRight((collected, deps) => collected.concat(deps), [])
+      .filter(unique);
   }
-  */
 
   public makeWorkspaceConfig(workspace: Yarn.Workspace): Webpack.Configuration {
     const name = workspace.manifest.name?.name!;
@@ -49,8 +48,7 @@ export class Compiler {
     manifest.name = workspace.manifest.name;
     manifest.version = workspace.manifest.version;
     manifest.main = YarnFS.npath.toPortablePath("index.js");
-
-    // TODO: Use Yarn to collect dependencies!
+    manifest.dependencies = new Map(this.collectDependencies(workspace));
 
     return {
       entry: { [name]: entry },
@@ -70,6 +68,7 @@ export class Compiler {
       .map((ws) => this.makeWorkspaceConfig(ws));
 
     return webpackMerge([
+      // TODO: Cleaner way of handling externals? Per-entry basis?
       {
         externals: [
           webpackNodeExternals({
