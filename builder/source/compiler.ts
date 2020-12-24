@@ -16,6 +16,7 @@ function unique<T>(value: T, index: number, array: T[]): boolean {
   return array.indexOf(value) === index;
 }
 
+type DependencyMap = Map<Yarn.IdentHash, Yarn.Descriptor>;
 type DependencyPair = [Yarn.IdentHash, Yarn.Descriptor];
 
 export class Compiler {
@@ -28,27 +29,30 @@ export class Compiler {
   }
 
   private collectDependencies(workspace: Yarn.Workspace): DependencyPair[] {
-    const workspaces = this.project.workspacesByIdent;
+    // TODO: Handle circular dependencies between workspaces?
     return Array.from(workspace.manifest.dependencies)
       .map(([ident, desc]): DependencyPair[] => {
-        if (workspaces.has(ident))
-          return this.collectDependencies(workspaces.get(ident)!);
-        else return [[ident, desc]];
+        const ws = this.project.workspacesByIdent.get(ident);
+        return ws ? this.collectDependencies(ws) : [[ident, desc]];
       })
-      .reduceRight((collected, deps) => collected.concat(deps), [])
-      .filter(unique);
+      .reduceRight((collected, deps) => collected.concat(deps), []);
+  }
+
+  private transitiveDependencies(workspace: Yarn.Workspace): DependencyMap {
+    // TODO: Check version conflicts?
+    return new Map(this.collectDependencies(workspace).filter(unique));
   }
 
   public makeWorkspaceConfig(workspace: Yarn.Workspace): Webpack.Configuration {
     const name = workspace.manifest.name?.name!;
     const entry = YarnFS.ppath.resolve(workspace.cwd, workspace.manifest.main!);
 
-    // Build the new manifest with all transient dependencies included.
+    // Build the new manifest with all transitive dependencies included.
     const manifest = new Yarn.Manifest();
     manifest.name = workspace.manifest.name;
     manifest.version = workspace.manifest.version;
     manifest.main = YarnFS.npath.toPortablePath("index.js");
-    manifest.dependencies = new Map(this.collectDependencies(workspace));
+    manifest.dependencies = this.transitiveDependencies(workspace);
 
     return {
       entry: { [name]: entry },
