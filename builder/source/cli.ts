@@ -5,7 +5,7 @@ import * as Webpack from "webpack";
 import { CleanWebpackPlugin } from "clean-webpack-plugin";
 import webpackMerge from "webpack-merge";
 
-import { Compiler } from "./compiler";
+import { ConfigGenerator } from "./config-generator";
 
 async function webpackAsync(
   config: Webpack.Configuration
@@ -45,9 +45,12 @@ async function run() {
   const cwd = YarnFS.npath.toPortablePath(process.cwd());
   const yarnConfig = await Yarn.Configuration.find(cwd, null);
   const { project } = await Yarn.Project.find(yarnConfig, cwd);
-  const compiler = new Compiler(project);
-  const config = webpackMerge([baseConfig, compiler.makeWebpackConfig()]);
-  const stats = await webpackAsync(config);
+  const configGenerator = new ConfigGenerator(project);
+  const webpackConfig = webpackMerge([
+    baseConfig,
+    configGenerator.makeWebpackConfig(),
+  ]);
+  const stats = await webpackAsync(webpackConfig);
   console.log(stats?.toString({ colors: true }));
 }
 

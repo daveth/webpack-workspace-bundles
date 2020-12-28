@@ -19,7 +19,7 @@ function unique<T>(value: T, index: number, array: T[]): boolean {
 type DependencyMap = Map<Yarn.IdentHash, Yarn.Descriptor>;
 type DependencyPair = [Yarn.IdentHash, Yarn.Descriptor];
 
-export class Compiler {
+export class ConfigGenerator {
   public constructor(public readonly project: Yarn.Project) {}
 
   public get workspaceIdentStrings(): string[] {
