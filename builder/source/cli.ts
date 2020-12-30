@@ -38,9 +38,11 @@ function baseConfig(cwd: YarnFS.PortablePath): Webpack.Configuration {
         {
           test: /\.ts$/i,
           use: "ts-loader",
-          exclude: /node_modules/,
         },
       ],
+    },
+    resolve: {
+      extensions: [".ts", ".js", ".json"],
     },
     plugins: [new CleanWebpackPlugin()],
   };
@@ -58,6 +60,7 @@ async function run() {
     baseConfig(cwd),
     configGenerator.makeWebpackConfig(toBuild),
   ]);
+
   const stats = await webpackAsync(webpackConfig);
   console.log(stats?.toString({ colors: true }));
 }
