@@ -2,9 +2,14 @@ BUILDER_DIR=./builder
 CLI_PROJ_DIR=./cli-project
 
 .PHONY:
-all:
+all: install
 	yarn --cwd=$(BUILDER_DIR) build
 	yarn --cwd=$(CLI_PROJ_DIR) build
+
+.PHONY:
+install:
+	yarn --cwd=$(BUILDER_DIR)
+	yarn --cwd=$(CLI_PROJ_DIR)
 
 .PHONY:
 clean:

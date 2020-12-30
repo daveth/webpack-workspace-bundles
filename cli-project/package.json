@@ -1,11 +1,10 @@
 {
-  "name": "@daveth/cli-project",
   "private": true,
   "workspaces": [
     "components/*"
   ],
   "scripts": {
-    "build": "daveth-build",
+    "build": "daveth-build @daveth/app",
     "clean": "rimraf dist components/*/lib"
   },
   "devDependencies": {

@@ -16,6 +16,10 @@ function unique<T>(value: T, index: number, array: T[]): boolean {
   return array.indexOf(value) === index;
 }
 
+function prettyName(ws: Yarn.Workspace): string {
+  return Yarn.structUtils.stringifyIdent(ws.manifest.name!);
+}
+
 type DependencyMap = Map<Yarn.IdentHash, Yarn.Descriptor>;
 type DependencyPair = [Yarn.IdentHash, Yarn.Descriptor];
 
@@ -23,9 +27,9 @@ export class ConfigGenerator {
   public constructor(public readonly project: Yarn.Project) {}
 
   public get workspaceIdentStrings(): string[] {
-    return this.project.workspaces.map((ws) =>
-      Yarn.structUtils.stringifyIdent(ws.manifest.name!)
-    );
+    return this.project.workspaces
+      .filter((ws) => ws.manifest.name && true)
+      .map(prettyName);
   }
 
   private collectDependencies(workspace: Yarn.Workspace): DependencyPair[] {
@@ -66,9 +70,10 @@ export class ConfigGenerator {
     };
   }
 
-  public makeWebpackConfig(): Webpack.Configuration {
+  public makeWebpackConfig(toBuild: string[]): Webpack.Configuration {
     const workspaceConfigs = this.project.workspaces
       .filter(hasMain)
+      .filter((ws) => toBuild.includes(prettyName(ws)))
       .map((ws) => this.makeWorkspaceConfig(ws));
 
     return webpackMerge([
