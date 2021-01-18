@@ -30,6 +30,9 @@ function baseConfig(cwd: YarnFS.PortablePath): Webpack.Configuration {
       libraryTarget: "commonjs",
     },
     target: "node",
+    resolve: {
+      extensions: [".ts", ".js", ".json"],
+    },
     module: {
       rules: [
         {
