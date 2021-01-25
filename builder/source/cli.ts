@@ -41,9 +41,6 @@ function baseConfig(cwd: YarnFS.PortablePath): Webpack.Configuration {
         },
       ],
     },
-    resolve: {
-      extensions: [".ts", ".js", ".json"],
-    },
     plugins: [new CleanWebpackPlugin()],
   };
 }
