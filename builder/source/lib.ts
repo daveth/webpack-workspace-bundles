@@ -40,10 +40,6 @@ function isWorkspace(project: Yarn.Project, ident: Yarn.Ident): boolean {
   return project.workspacesByIdent.has(ident.identHash);
 }
 
-function matchName(name: string): (ws: Yarn.Workspace) => boolean {
-  return (ws) => !!ws.manifest.name && prettyName(ws.manifest.name) === name;
-}
-
 function notExcludedBy(externals?: string[]): (d: Yarn.Descriptor) => boolean {
   return (descriptor) =>
     !externals || !externals.includes(prettyName(descriptor));
@@ -119,6 +115,10 @@ function resolveMain(workspace: Yarn.Workspace): YarnFS.PortablePath {
   );
 }
 
+function byName(name: string): (ws: Yarn.Workspace) => boolean {
+  return (ws) => !!ws.manifest.name && prettyName(ws.manifest.name) === name;
+}
+
 function byPrettyName(name: string): (descriptor: Yarn.Descriptor) => boolean {
   return (descriptor) => prettyName(descriptor) === name;
 }
@@ -129,8 +129,24 @@ function lookupDependencyIn(
   return (name) => dependencies.find(byPrettyName(name));
 }
 
+function lookupWorkspaceIn(
+  workspaces: Yarn.Workspace[]
+): (name: string) => Yarn.Workspace | undefined {
+  return (name) => workspaces.find(byName(name));
+}
+
 function exists<T>(o: T | undefined | null): o is T {
   return !!o;
+}
+
+function throwError(e: Error): never {
+  throw e;
+}
+
+function assertExists<T>(
+  assertion: () => Error
+): (o: T | undefined | null) => o is T {
+  return (o): o is T => exists(o) || throwError(assertion());
 }
 
 export async function loadWorkspace(options: {
@@ -144,16 +160,19 @@ export async function loadWorkspace(options: {
   const { project } = await Yarn.Project.find(yarnConfig, cwd);
 
   // Look up the requested workspace in the project
-  const workspace = project.workspaces.find(matchName(options.name));
+  const workspace = project.workspaces.find(byName(options.name));
   if (!workspace) throw new WorkspaceNotFoundError(project, options.name);
+
+  // Map externals from names to workspace descriptors.
+  // TODO: Make these pin a version instead of using `workspace:<relpath>`
+  const externalsDescriptors = options.externals
+    ?.map(lookupWorkspaceIn(project.workspaces))
+    .filter(assertExists(() => new WorkspaceNotFoundError(project, "fuck")))
+    .map((workspace) => workspace.anchoredDescriptor);
 
   // Resolve the entry point and collect dependencies
   const entry = options.entry || resolveMain(workspace);
   const dependencies = collect(project, workspace, options?.externals);
-
-  const externalsDescriptors = options.externals
-    ?.map(lookupDependencyIn(dependencies))
-    .filter(exists);
 
   // Build a list of all externals for build tools to exclude.
   // This needs to be the set of packages marked as external by our caller plus
@@ -166,7 +185,7 @@ export async function loadWorkspace(options: {
     workspace.manifest
   );
 
-  manifest.dependencies = dependencies;
+  manifest.dependencies = externals;
   manifest.devDependencies = [];
 
   return manifest;
