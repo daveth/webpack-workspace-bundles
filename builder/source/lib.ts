@@ -76,11 +76,7 @@ function setIfExists<O, K extends keyof O>(obj: O, key: K, prop: any) {
 export class FlattenedWorkspaceManifest {
   private readonly internal: Yarn.Manifest = new Yarn.Manifest();
 
-  public constructor(
-    public readonly entry: string,
-    public readonly externals?: string[],
-    template?: Partial<Yarn.Manifest>
-  ) {
+  public constructor(public readonly entry: string, template: Yarn.Manifest) {
     if (!template) return;
     setIfExists(this.internal, "name", template.name);
     setIfExists(this.internal, "version", template.version);
@@ -101,6 +97,10 @@ export class FlattenedWorkspaceManifest {
     );
   }
 
+  public get externals(): string[] {
+    return Array.from(this.internal.dependencies.values()).map(prettyName);
+  }
+
   public get manifest(): { [key: string]: any } {
     return this.internal.exportTo({});
   }
@@ -119,34 +119,10 @@ function byName(name: string): (ws: Yarn.Workspace) => boolean {
   return (ws) => !!ws.manifest.name && prettyName(ws.manifest.name) === name;
 }
 
-function byPrettyName(name: string): (descriptor: Yarn.Descriptor) => boolean {
-  return (descriptor) => prettyName(descriptor) === name;
-}
-
-function lookupDependencyIn(
-  dependencies: Yarn.Descriptor[]
-): (name: string) => Yarn.Descriptor | undefined {
-  return (name) => dependencies.find(byPrettyName(name));
-}
-
-function lookupWorkspaceIn(
-  workspaces: Yarn.Workspace[]
-): (name: string) => Yarn.Workspace | undefined {
-  return (name) => workspaces.find(byName(name));
-}
-
-function exists<T>(o: T | undefined | null): o is T {
-  return !!o;
-}
-
-function throwError(e: Error): never {
-  throw e;
-}
-
-function assertExists<T>(
-  assertion: () => Error
-): (o: T | undefined | null) => o is T {
-  return (o): o is T => exists(o) || throwError(assertion());
+function getWorkspace(project: Yarn.Project, name: string) {
+  const workspace = project.workspaces.find(byName(name));
+  if (!workspace) throw new WorkspaceNotFoundError(project, name);
+  return workspace;
 }
 
 export async function loadWorkspace(options: {
@@ -160,14 +136,12 @@ export async function loadWorkspace(options: {
   const { project } = await Yarn.Project.find(yarnConfig, cwd);
 
   // Look up the requested workspace in the project
-  const workspace = project.workspaces.find(byName(options.name));
-  if (!workspace) throw new WorkspaceNotFoundError(project, options.name);
+  const workspace = getWorkspace(project, options.name);
 
   // Map externals from names to workspace descriptors.
   // TODO: Make these pin a version instead of using `workspace:<relpath>`
   const externalsDescriptors = options.externals
-    ?.map(lookupWorkspaceIn(project.workspaces))
-    .filter(assertExists(() => new WorkspaceNotFoundError(project, "fuck")))
+    ?.map((name) => getWorkspace(project, name))
     .map((workspace) => workspace.anchoredDescriptor);
 
   // Resolve the entry point and collect dependencies
@@ -179,12 +153,10 @@ export async function loadWorkspace(options: {
   // any leaf-node dependencies we extracted from traversing our workspaces.
   const externals = dependencies.concat(externalsDescriptors || []);
 
-  const manifest = new FlattenedWorkspaceManifest(
-    entry,
-    externals.map(prettyName),
-    workspace.manifest
-  );
+  // Make our new flattened manifest, with resolved entrypoint included.
+  const manifest = new FlattenedWorkspaceManifest(entry, workspace.manifest);
 
+  // The dependencies of the new manifest are the externals
   manifest.dependencies = externals;
   manifest.devDependencies = [];
 
