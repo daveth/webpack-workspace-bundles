@@ -2,6 +2,8 @@
   "name": "@daveth/builder",
   "version": "1.0.0",
   "private": true,
+  "main": "lib/lib.js",
+  "types": "lib/lib.d.ts",
   "bin": {
     "daveth-build": "./cli.js"
   },
