@@ -1,16 +1,5 @@
-import Path from "path";
-
-import Webpack from "webpack";
-import WebpackWriteFilePlugin from "./webpack-write-file-plugin";
-import webpackNodeExternals from "webpack-node-externals";
-import webpackMerge from "webpack-merge";
-
 import * as Yarn from "@yarnpkg/core";
 import * as YarnFS from "@yarnpkg/fslib";
-
-function hasMain(ws: Yarn.Workspace): boolean {
-  return ws.manifest.main !== null;
-}
 
 function unique<T>(value: T, index: number, array: T[]): boolean {
   return array.indexOf(value) === index;
@@ -23,7 +12,7 @@ function prettyName(ws: Yarn.Workspace): string {
 type DependencyMap = Map<Yarn.IdentHash, Yarn.Descriptor>;
 type DependencyPair = [Yarn.IdentHash, Yarn.Descriptor];
 
-export class ConfigGenerator {
+export class ManifestGenerator {
   public constructor(public readonly project: Yarn.Project) {}
 
   public get workspaceIdentStrings(): string[] {
@@ -47,46 +36,13 @@ export class ConfigGenerator {
     return new Map(this.collectDependencies(workspace).filter(unique));
   }
 
-  public makeWorkspaceConfig(workspace: Yarn.Workspace): Webpack.Configuration {
-    const name = workspace.manifest.name?.name!;
-    const entry = YarnFS.ppath.resolve(workspace.cwd, workspace.manifest.main!);
-
-    // Build the new manifest with all transitive dependencies included.
+  public makePackageManifest(workspace: Yarn.Workspace): Yarn.Manifest {
     const manifest = new Yarn.Manifest();
     manifest.name = workspace.manifest.name;
     manifest.version = workspace.manifest.version;
     manifest.main = YarnFS.npath.toPortablePath("index.js");
     manifest.dependencies = this.transitiveDependencies(workspace);
 
-    return {
-      entry: { [name]: entry },
-      plugins: [
-        new WebpackWriteFilePlugin({
-          path: name,
-          name: "package.json",
-          content: Buffer.from(JSON.stringify(manifest.exportTo({}))),
-        }),
-      ],
-    };
-  }
-
-  public makeWebpackConfig(toBuild: string[]): Webpack.Configuration {
-    const workspaceConfigs = this.project.workspaces
-      .filter(hasMain)
-      .filter((ws) => toBuild.includes(prettyName(ws)))
-      .map((ws) => this.makeWorkspaceConfig(ws));
-
-    return webpackMerge([
-      // TODO: Cleaner way of handling externals? Per-entry basis?
-      {
-        externals: [
-          webpackNodeExternals({
-            additionalModuleDirs: [Path.resolve("node_modules")],
-            allowlist: this.workspaceIdentStrings,
-          }),
-        ],
-      },
-      ...workspaceConfigs,
-    ]);
+    return manifest;
   }
 }
