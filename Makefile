@@ -1,17 +1,17 @@
 BUILDER_DIR=./manyfest
-CLI_PROJ_DIR=./cli-project
+TEST_PROJ_DIR=./test-project
 
 .PHONY:
-all: install
+all: dependencies
 	yarn --cwd=$(BUILDER_DIR) build
-	yarn --cwd=$(CLI_PROJ_DIR) build
+	yarn --cwd=$(TEST_PROJ_DIR) build
 
 .PHONY:
-install:
+dependencies:
 	yarn --cwd=$(BUILDER_DIR)
-	yarn --cwd=$(CLI_PROJ_DIR)
+	yarn --cwd=$(TEST_PROJ_DIR)
 
 .PHONY:
 clean:
 	yarn --cwd=$(BUILDER_DIR) clean
-	yarn --cwd=$(CLI_PROJ_DIR) clean
+	yarn --cwd=$(TEST_PROJ_DIR) clean
