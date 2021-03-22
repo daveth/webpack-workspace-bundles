@@ -1,31 +1,17 @@
-# Bundling applications for serverless NodeJS environments with Webpack
+# Manyfest
+Flatten package manifests for Yarn workspaces into a single composed manifest.
+
 ## Motivation
-If you're using Yarn workspaces or other local package/monorepo tools (like
-Lerna), then any code existing in separate modules to the one being deployed
-won't automatically be bundled up, meaning that at deployment your app will fail
-with some reason like `can't find package @my-org/some-dependency`.
+Deploying for NodeJS-based serverless environments requires having a single
+bundle to be deployed. These bundles can be produced simply by zipping up the
+deployables' source directories, but however if the source directory is a Yarn
+workspace then the depended-upon workspaces won't be included with the bundle.
+This can lead to deployment failing with `cannot resolve pacakge @org/lib` when
+a deployed bundle depends on a local workspace `@org/lib` which wasn't included
+in the bundle in this naive bundling process.
 
-One solution to this is to package up all local dependencies by using
-`yarn pack` (or `npm pack`), copy them into the deployment staging area, and
-adjust the `package.json` to point at these zip files. This gets pretty messy
-as you need to find all workspace dependencies of your app, get the directories
-they are in, run the bundling command, copy them over, etc, etc.
-
-A better solution is to use some tool like Webpack that can produce
-self-contained bundles for you. Webpack already uses Node's module resolution
-system to find where the dependencies are in the filesystem and will output them
-into the final bundle. To avoid bundling every dependency (even ones that will
-be installed at deploy-time in the target environment), the `externals` config
-property can be used to only add local workspace dependencies to the bundle.
-
-## Still to come
-### Control the build with a config file or command line params
-
-### Webpack declaration files in incorrect places
-Generated `*.d.ts` files end up in the workspace's directories instead of where
-the `builder` output directory is specified. Is this a `tsconfig.json` issue or
-a webpack one?
-
-It seems like the files end up wherever the `compilerOptions.outDir` field of
-the workspace's `tsconfig.json` file specifies. Is there a good way to control
-this from webpack?
+Serverless NodeJS environments tend to install dependencies using NPM or Yarn
+using an uploaded package manifest, and so to more closely match what these
+environments can support for installing dependencies this tool produces a
+manifest from a target Yarn workspace that includes all transitive dependencies
+of workspaces that are depended upon.

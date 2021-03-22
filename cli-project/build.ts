@@ -1,12 +1,9 @@
 import { promises as fs } from "fs";
 import * as esbuild from "esbuild";
-import * as daveth from "@daveth/builder";
+import * as manyfest from "@daveth/manyfest";
 
 async function build() {
-  const app = await daveth.loadWorkspace({
-    name: "@daveth/app",
-    externals: ["@daveth/bar"],
-  });
+  const app = await manyfest.loadWorkspace({ name: "@daveth/app" });
 
   console.log({
     entry: app.entry,

@@ -1,4 +1,4 @@
-BUILDER_DIR=./builder
+BUILDER_DIR=./manyfest
 CLI_PROJ_DIR=./cli-project
 
 .PHONY:

@@ -8,7 +8,7 @@
     "clean": "rimraf dist components/*/lib"
   },
   "devDependencies": {
-    "@daveth/builder": "../builder",
+    "@daveth/manyfest": "../manyfest",
     "esbuild": "^0.9.6",
     "rimraf": "^3.0.2",
     "ts-node": "^9.1.1",
