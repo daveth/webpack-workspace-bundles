@@ -1,6 +1,6 @@
 {
   "name": "@daveth/manyfest",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "license": "MIT",
   "main": "lib/lib.js",
   "types": "lib/lib.d.ts",
