@@ -108,11 +108,7 @@ export class FlattenedWorkspaceManifest {
 
 function resolveMain(workspace: Yarn.Workspace): YarnFS.PortablePath {
   if (!workspace.manifest.main) throw new WorkspaceHasNoMainError(workspace);
-
-  return YarnFS.ppath.relative(
-    workspace.project.cwd,
-    YarnFS.ppath.resolve(workspace.cwd, workspace.manifest.main)
-  );
+  return YarnFS.ppath.resolve(workspace.cwd, workspace.manifest.main);
 }
 
 function byName(name: string): (ws: Yarn.Workspace) => boolean {
