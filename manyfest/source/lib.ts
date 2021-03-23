@@ -106,9 +106,15 @@ export class FlattenedWorkspaceManifest {
   }
 }
 
-function resolveMain(workspace: Yarn.Workspace): YarnFS.PortablePath {
+function resolveMain(
+  cwd: YarnFS.PortablePath,
+  workspace: Yarn.Workspace
+): YarnFS.PortablePath {
   if (!workspace.manifest.main) throw new WorkspaceHasNoMainError(workspace);
-  return YarnFS.ppath.resolve(workspace.cwd, workspace.manifest.main);
+  return YarnFS.ppath.relative(
+    cwd,
+    YarnFS.ppath.resolve(workspace.cwd, workspace.manifest.main)
+  );
 }
 
 function byName(name: string): (ws: Yarn.Workspace) => boolean {
@@ -141,7 +147,7 @@ export async function loadWorkspace(options: {
     .map((workspace) => workspace.anchoredDescriptor);
 
   // Resolve the entry point and collect dependencies
-  const entry = options.entry || resolveMain(workspace);
+  const entry = options.entry || resolveMain(cwd, workspace);
   const dependencies = collect(project, workspace, options?.externals);
 
   // Build a list of all externals for build tools to exclude.
